@@ -112,7 +112,6 @@ Main:
     CALL BeginRecord	;Yes start recording 
     BTFSS PORTA, 2	;Is review pressed?
     BSF MODESEL, 0	;Set interrupt mode: Review
-    ;GOTO Display	;Yes display
     GOTO Main		;No scan again
     
 Display:
@@ -346,17 +345,17 @@ FixS:;
     
 ;<editor-fold defaultstate="collapsed" desc="Review Mode">
 Review:
-    MOVF CURRENTADRESS, 0
-    CALL Read
-    MOVWF PORTC
-    DECF CURRENTADRESS, 1
-    MOVLW 0x00
+    MOVF CURRENTADRESS, 0   ;load address
+    CALL Read		    ;read data at address
+    MOVWF PORTC		    ;display data
+    DECF CURRENTADRESS, 1   ;decrease address by one
+    MOVLW 0x00	    
     XORWF CURRENTADRESS, 0
-    BTFSS STATUS, 2
-    GOTO Restore
-    MOVLW 0x0B
-    MOVWF CURRENTADRESS
-    CLRF MODESEL
+    BTFSS STATUS, 2	    ;is address 0?
+    GOTO Restore	    ;no
+    MOVLW 0x0B		    ;yes
+    MOVWF CURRENTADRESS	    ;reset address
+    CLRF MODESEL	    ;leave review mode
     GOTO Restore;</editor-fold>
     
 ;<editor-fold defaultstate="collapsed" desc="Small Delay">

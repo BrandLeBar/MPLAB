@@ -2357,11 +2357,11 @@ PSECT code,class=CODE,delta=2 ;-Wl,-pcode=08h
 
 WSAVE EQU 0x20
 BANKSAVE EQU 0x21
-DATASAVE EQU 0x22
-PW1 EQU 0x23
-PW2 EQU 0x24
-PW3 EQU 0x25
-SERVO EQU 0x26
+PERIOD EQU 0x22
+PULSESPACE1 EQU 0x23
+PULSESPACE2 EQU 0x24
+PULSESPACE3 EQU 0x25
+DATASAVE EQU 0x26
 
 Start:
     BSF STATUS, 5 ;Bank 3 select
@@ -2403,10 +2403,6 @@ Start:
     MOVWF PORTA ;Same
     MOVLW 0x00
     MOVWF PORTC ;Same
-    CLRF PW1
-    CLRF PW2
-    CLRF PW3
-    CLRF SERVO
     BCF PIR1, 1 ;Clears TMR2 flag
     BCF PIR1, 3 ;Clears MSSP flag
     MOVLW 0xC0
@@ -2414,7 +2410,7 @@ Start:
     ;--------------------------------------
 
 Main:
-    GOTO Main ;loop
+    GOTO Main
 
 InterruptHandler:
 
@@ -2422,12 +2418,9 @@ InterruptHandler:
     MOVF STATUS, 0 ;Save Bank & W
     MOVWF BANKSAVE ;"//</editor-fold>
     BTFSC PIR1, 3 ;Is it Recieving?
-    GOTO Recieving
-    NOP ;No
+    GOTO Recieving ;Yes
     BTFSC PIR1, 1 ;Is it timer 2?
-    GOTO Timer
-    NOP ;No
-
+    GOTO Timer ;Yes
 
 Restore:
     MOVF BANKSAVE, 0 ;"
@@ -2436,151 +2429,162 @@ Restore:
     RETFIE
 
 
-Recieving:
-    BCF STATUS, 5 ;Bank 0
-    BCF PIR1, 3
-    BTFSC PIR1, 3
-    GOTO $-2
-    BSF STATUS, 5 ;Bank 1
-    BTFSS SSPSTAT, 5 ;Is it the address or data
-    GOTO ClearAndRetry ;Address
-    BCF STATUS, 5 ;Bank 0
-    MOVF SSPBUF, 0 ;Read data
-    MOVWF DATASAVE
-    BSF STATUS, 5 ;Bank 1
-    BTFSS SSPSTAT, 0 ;Is it done reading?
-    GOTO $-1 ;No, wait
-    NOP
-    NOP
-    BCF STATUS, 5 ;Bank 0
-    BCF PIR1, 3 ;Clear ((PIR1) and 07Fh), 3 flag
-    BTFSC PIR1, 3 ;Wait for ((PIR1) and 07Fh), 3 to clear
-    GOTO $-2
-    BSF SSPCON, 4 ;Release Clock
-    BCF STATUS, 5 ;Bank 0
-    BCF PIR1, 3
-    BTFSC PIR1, 3
-    GOTO $-2
-    BTFSC DATASAVE, 7 ;Yes what Servo was it for, Servo 3?
-    GOTO Servo3
-    BTFSC DATASAVE, 6 ;Servo 2?
-    GOTO Servo2
-    BTFSC DATASAVE, 5 ;Servo 1?
-    GOTO Servo1
-    BCF STATUS, 5 ;Bank 0
-    BCF PIR1, 3
-    BTFSC PIR1, 3
-    GOTO $-2
-    GOTO Restore ;None/error
-
-ClearAndRetry:
-    BCF STATUS, 5 ;Bank 0
-    MOVF SSPBUF, 0 ;Clear Buffer
-    NOP
-    NOP
-    BSF STATUS, 5 ;Bank 1
-    BTFSS SSPSTAT, 0 ;Is it done reading?
-    GOTO $-1 ;No, wait
-    NOP
-    NOP
-    BCF STATUS, 5 ;Bank 0
-    BCF PIR1, 3
-    BTFSC PIR1, 3
-    GOTO $-2
-    GOTO Restore
-
 Timer:
-    BCF STATUS, 5
-    BCF STATUS, 6 ;Bank 0
     BCF PIR1, 1 ;Clear TMR2 flag
-    BTFSC SERVO, 0 ;Is it for Servo 1?
-    GOTO ServoTimer1 ;Yes
-    BTFSC SERVO, 1 ;Is it for Servo 2?
-    GOTO ServoTimer2 ;Yes
-    BTFSC SERVO, 2 ;Is it for Servo 3?
-    GOTO ServoTimer3 ;Yes
-    ;CLRF PORTA ;None
+    DECFSZ PERIOD ;Wait a Period
+    GOTO FindPW
+    MOVLW 0xC8 ;Reset Period
+    MOVWF PERIOD
+    BSF PORTA, 0
+    BSF PORTA, 1
+    BSF PORTA, 2
     GOTO Restore
 
-ServoTimer1:
-    BSF PORTA, 0 ;Set Servo1 High
-    DECFSZ PW1, 1 ;Dec until PW = 0x00
-    GOTO Restore ;Keep Waiting
-    BCF SERVO, 0 ;Reset
-    BCF PORTA, 0 ;Disable Servo1
-    GOTO Restore
-ServoTimer2:
-    BSF PORTA, 1 ;Set Servo2 High
-    DECFSZ PW2, 1 ;Dec until PW = 0x00
-    GOTO Restore ;Keep Waiting
-    BCF SERVO, 1 ;Reset
-    BCF PORTA, 1 ;Disable Servo2
-    GOTO Restore
-ServoTimer3:
-    BSF PORTA, 2 ;Set Servo3 High
-    DECFSZ PW3, 1 ;Dec until PW = 0x00
-    GOTO Restore ;Keep Waiting
-    BCF SERVO, 2 ;Reset
-    BCF PORTA, 2 ;Disable Servo3
+
+FindPW:
+    MOVF PERIOD, 0
+    SUBWF PULSESPACE1, 0
+    BTFSC STATUS, 2 ;Is it zero?
+    BCF PORTA, 0 ;Yes
+    MOVF PERIOD, 0 ;No
+    SUBWF PULSESPACE2, 0
+    BTFSC STATUS, 2 ;Is it zero?
+    BCF PORTA, 1 ;Yes
+    MOVF PERIOD, 0 ;No
+    SUBWF PULSESPACE3, 0
+    BTFSC STATUS, 2 ;Is it zero?
+    BCF PORTA, 2 ;Yes
+    GOTO Restore ;No
+
+
+
+Recieving:
+    MOVF SSPBUF, 0 ;Clear the I2C Buffer, and move its contents to W
+    BCF PIR1, 3 ;Clear the I2C Flag
+    BTFSC SSPBUF, 0 ;Is it Reading?
+    GOTO Restore ;Yes, Don't care
+    GOTO Write ;No
+    GOTO Restore ;Redunandt exit
+
+
+Write:
+    BSF STATUS,5 ;Bank 1
+    BTFSS SSPSTAT, 5 ;Is it the Address?
+    GOTO Restore ;Yes
+    BCF STATUS, 5 ;No, Bank 0
+    MOVWF DATASAVE ;Move W from Recieving into a Save
+    BTFSC DATASAVE, 7 ;Is it servo1 address?
+    CALL Servo1 ;Yes
+    BTFSC DATASAVE, 6 ;Is it servo2 address?
+    CALL Servo2 ;Yes
+    BTFSC DATASAVE, 5 ;Is it servo3 address?
+    CALL Servo3 ;Yes
+    BSF STATUS, 5 ;Bank 1
+    BTFSC SSPSTAT, 4 ;Is there a stop bit?
+    GOTO Restore ;Yes
+    BCF SSPCON2, 5 ;No, Initiate ACK sequence
+    BSF SSPCON2, 4
     GOTO Restore
 
 
 Servo1:
-    BSF SERVO, 0 ;Set for Timer
-    BCF DATASAVE, 5 ;Wipe address
-    MOVF DATASAVE, 0 ;Load value for table
-    CALL LookUpTable ;Find value for Timer
-    MOVWF PW1 ;Load value for Timer
-    GOTO Timer
+    CALL WeighBits
+    MOVWF PULSESPACE1
+    RETURN
+
 Servo2:
-    BSF SERVO, 1 ;Set for Timer
-    BCF DATASAVE, 6 ;Wipe address
-    MOVF DATASAVE, 0 ;Load value for table
-    CALL LookUpTable ;Find value for Timer
-    MOVWF PW2 ;Load value for Timer
-    GOTO Timer
+    CALL WeighBits
+    MOVWF PULSESPACE2
+    RETURN
+
 Servo3:
-    BSF SERVO, 2 ;Set for Timer
-    BCF DATASAVE, 7 ;Wipe address
-    MOVF DATASAVE, 0 ;Load value for table
-    CALL LookUpTable ;Find value for Timer
-    MOVWF PW3 ;Load value for Timer
-    GOTO Timer
+    CALL WeighBits
+    MOVWF PULSESPACE3
+    RETURN
 
 
-LookUpTable:
-    ADDWF PCL, 1
-    RETLW 0x05
-    RETLW 0x05
-    RETLW 0x06
-    RETLW 0x06
-    RETLW 0x07
-    RETLW 0x07
-    RETLW 0x08
-    RETLW 0x08
-    RETLW 0x09
-    RETLW 0x09
-    RETLW 0x0A
-    RETLW 0x0A
-    RETLW 0x0B
-    RETLW 0x0B
-    RETLW 0x0C
-    RETLW 0x0C
-    RETLW 0x0D
-    RETLW 0x0D
-    RETLW 0x0E
-    RETLW 0x0E
-    RETLW 0x0F
-    RETLW 0x0F
-    RETLW 0x10
-    RETLW 0x11
-    RETLW 0x12
-    RETLW 0x13
-    RETLW 0x14
-    RETLW 0x15
-    RETLW 0x16
-    RETLW 0x17
-    RETLW 0x18
-    RETLW 0x19
+WeighBits:
+    MOVLW 0x00
+    BTFSC DATASAVE, 0 ;Weight bit 0
+    ADDLW 0x02
+    BTFSC DATASAVE, 1 ;Weight bit 1
+    ADDLW 0x04
+    BTFSC DATASAVE, 2 ;Weight bit 2
+    ADDLW 0x08
+    BTFSC DATASAVE, 3 ;Weight bit 3
+    ADDLW 0x10
+    BTFSC DATASAVE, 4 ;Weight bit 4
+    ADDLW 0x20
+    ADDWF PCL, 1 ;Use weighted bits to find a value in look-up table below
+    MOVLW 170
+    RETURN
+    MOVLW 170
+    RETURN
+    MOVLW 171
+    RETURN
+    MOVLW 171
+    RETURN
+    MOVLW 172
+    RETURN
+    MOVLW 172
+    RETURN
+    MOVLW 173
+    RETURN
+    MOVLW 173
+    RETURN
+    MOVLW 174
+    RETURN
+    MOVLW 174
+    RETURN
+    MOVLW 175
+    RETURN
+    MOVLW 176
+    RETURN
+    MOVLW 177
+    RETURN
+    MOVLW 178
+    RETURN
+    MOVLW 179
+    RETURN
+    MOVLW 180
+    RETURN
+    MOVLW 181
+    RETURN
+    MOVLW 182
+    RETURN
+    MOVLW 183
+    RETURN
+    MOVLW 184
+    RETURN
+    MOVLW 185
+    RETURN
+    MOVLW 186
+    RETURN
+    MOVLW 187
+    RETURN
+    MOVLW 188
+    RETURN
+    MOVLW 189
+    RETURN
+    MOVLW 190
+    RETURN
+    MOVLW 191
+    RETURN
+    MOVLW 192
+    RETURN
+    MOVLW 193
+    RETURN
+    MOVLW 194
+    RETURN
+    MOVLW 195
+    RETURN
+    MOVLW 195
+    RETURN
+    MOVLW 195
+    RETURN
+    MOVLW 195
+    RETURN
+    MOVLW 195
+    RETURN
 
 END

@@ -9651,16 +9651,7 @@ DATA_BYTE EQU 0x070
 DATA_RX_1 EQU 0x071
 DATA_RX_2 EQU 0x072
 DATA_RX_3 EQU 0x073
-DATA_RX_4 EQU 0x074
-DATA_RX_5 EQU 0x075
-DATA_RX_6 EQU 0x076
-;DATA_RX_OFF1 EQU 0x077
-;DATA_RX_OFF2 EQU 0x078
-;DATA_RX_OFF3 EQU 0x079
-;DATA_RX_OFF4 EQU 0x07A
-;DATA_RX_OFF5 EQU 0x07B
-;DATA_RX_OFF6 EQU 0x07C
-EVIL_TEMP EQU 0x07D
+EVIL_TEMP EQU 0x074
 
 
 ;Reset Vector
@@ -9736,15 +9727,6 @@ Setup:
     CLRF DATA_RX_1
     CLRF DATA_RX_2
     CLRF DATA_RX_3
-    CLRF DATA_RX_4
-    CLRF DATA_RX_5
-    CLRF DATA_RX_6
-    ;CLRF DATA_RX_OFF1
-    ;CLRF DATA_RX_OFF2
-    ;CLRF DATA_RX_OFF3
-    ;CLRF DATA_RX_OFF4
-    ;CLRF DATA_RX_OFF5
-    ;CLRF DATA_RX_OFF6
     BCF PIR1, 3 ;Clears I2C flag to ensure known state
     MOVLW 0xC0
     MOVWF INTCON ;Configures Allowed interrupts, Globals & Preriphrials
@@ -9758,11 +9740,13 @@ Main:
     GOTO Main
 
 InterruptHandler:
+    ;<editor-fold defaultstate="collapsed" desc="Save Bank & W">
     MOVWF W_SAVE
     MOVF BSR, 0 ;Save Bank & W
-    MOVWF BANK_SAVE
+    MOVWF BANK_SAVE;</editor-fold>
     BTFSC PIR1, 3 ;Is I2C flag set?
     GOTO Recieve ;Yes
+;<editor-fold defaultstate="collapsed" desc="Restore: Restore Bank & W">
 Restore:
     MOVLB 0x00 ;Bank 0
     BCF PIR1, 3 ;Clear I2C flag
@@ -9771,8 +9755,9 @@ Restore:
     MOVF BANK_SAVE, 0
     MOVWF BSR ;Restore Bank & W
     MOVF W_SAVE, 0
-    RETFIE
+    RETFIE;</editor-fold>
 
+;<editor-fold defaultstate="collapsed" desc="Recieve: Byte seperation Logic">
 Recieve:
     BSF PORTC, 2 ;Status: Revieving
     MOVLB 0x04 ;Bank 4
@@ -9783,27 +9768,15 @@ Recieve:
     GOTO Restore ;Address, Disregard
     MOVLB 0x00 ;Bank 0
     MOVWF EVIL_TEMP ;Data, Save
-    ;MOVLW 0x90
-    ;XORWF EVIL_TEMP, 0
-    ;BTFSS STATUS, 2 ;Is note on?
-    ;GOTO Off ;No
-    MOVLW 0x05
+    MOVLW 0x06
     XORWF DATA_BYTE, 0
     BTFSC STATUS, 2 ;Is it byte 6?
-    GOTO Byte6 ;Yes
+    CLRF DATA_BYTE ;Yes
     MOVLW 0x04
-    XORWF DATA_BYTE, 0
-    BTFSC STATUS, 2 ;Is it byte 5?
-    GOTO Byte5 ;Yes
-    MOVLW 0x03
-    XORWF DATA_BYTE, 0
-    BTFSC STATUS, 2 ;Is it byte 4?
-    GOTO Byte4 ;Yes
-    MOVLW 0x02
     XORWF DATA_BYTE, 0
     BTFSC STATUS, 2 ;Is it byte 3?
     GOTO Byte3 ;Yes
-    MOVLW 0x01
+    MOVLW 0x02
     XORWF DATA_BYTE, 0
     BTFSC STATUS, 2 ;Is it byte 2?
     GOTO Byte2 ;Yes
@@ -9811,35 +9784,9 @@ Recieve:
     XORWF DATA_BYTE
     BTFSC STATUS, 2 ;Is it byte 1?
     GOTO Byte1 ;Yes
-    GOTO Restore
+    GOTO Restore;</editor-fold>
 
-;Off:
-    ;MOVLW 0x05
-    ;XORWF DATA_BYTE, 0
-    ;BTFSC STATUS, 2 ;Is it byte 6?
-    ;GOTO ByteOFF6 ;Yes
-    ;MOVLW 0x04
-    ;XORWF DATA_BYTE, 0
-    ;BTFSC STATUS, 2 ;Is it byte 5?
-    ;GOTO ByteOFF5 ;Yes
-    ;MOVLW 0x03
-    ;XORWF DATA_BYTE, 0
-    ;BTFSC STATUS, 2 ;Is it byte 4?
-    ;GOTO ByteOFF4 ;Yes
-    ;MOVLW 0x02
-    ;XORWF DATA_BYTE, 0
-    ;BTFSC STATUS, 2 ;Is it byte 3?
-    ;GOTO ByteOFF3 ;Yes
-    ;MOVLW 0x01
-    ;XORWF DATA_BYTE, 0
-    ;BTFSC STATUS, 2 ;Is it byte 2?
-    ;GOTO ByteOFF2 ;Yes
-    ;MOVLW 0x00
-    ;XORWF DATA_BYTE
-    ;BTFSC STATUS, 2 ;Is it byte 1?
-    ;GOTO ByteOFF1 ;Yes
-    ;GOTO Restore
-
+;<editor-fold defaultstate="collapsed" desc="Byte1-6: Saves buffer data to Rx register">
 Byte1:
     MOVF EVIL_TEMP, 0 ;Move data to W
     MOVWF DATA_RX_1 ;Save first Byte
@@ -9856,60 +9803,6 @@ Byte3:
     MOVF EVIL_TEMP, 0 ;Move data to W
     MOVWF DATA_RX_3 ;Save third Byte
     INCF DATA_BYTE, 1 ;Reset
-    GOTO Restore ;Return
-
-Byte4:
-    MOVF EVIL_TEMP, 0 ;Move data to W
-    MOVWF DATA_RX_4 ;Save fourth Byte
-    INCF DATA_BYTE, 1 ;Reset
-    GOTO Restore ;Return
-
-Byte5:
-    MOVF EVIL_TEMP, 0 ;Move data to W
-    MOVWF DATA_RX_5 ;Save fith Byte
-    INCF DATA_BYTE, 1 ;Reset
-    GOTO Restore ;Return
-
-Byte6:
-    MOVF EVIL_TEMP, 0 ;Move data to W
-    MOVWF DATA_RX_6 ;Save sixth Byte
-    CLRF DATA_BYTE ;Reset
-    GOTO Restore ;Return
-
-;ByteOFF1:
-    ;MOVF EVIL_TEMP, 0 ;Move data to W
-    ;MOVWF DATA_RX_OFF1 ;Save first Byte
-    ;INCF DATA_BYTE, 1 ;Increament for next byte
-    ;GOTO Restore ;Return
-
-;ByteOFF2:
-    ;MOVF EVIL_TEMP, 0 ;Move data to W
-    ;MOVWF DATA_RX_OFF2 ;Save second Byte
-    ;INCF DATA_BYTE, 1 ;Increament for next byte
-    ;GOTO Restore ;Return
-
-;ByteOFF3:
-    ;MOVF EVIL_TEMP, 0 ;Move data to W
-    ;MOVWF DATA_RX_OFF3 ;Save third Byte
-    ;INCF DATA_BYTE, 1 ;Reset
-    ;GOTO Restore ;Return
-
-;ByteOFF4:
-    ;MOVF EVIL_TEMP, 0 ;Move data to W
-    ;MOVWF DATA_RX_OFF4 ;Save fourth Byte
-    ;INCF DATA_BYTE, 1 ;Reset
-    ;GOTO Restore ;Return
-
-;ByteOFF5:
-    ;MOVF EVIL_TEMP, 0 ;Move data to W
-    ;MOVWF DATA_RX_OFF5 ;Save fith Byte
-    ;INCF DATA_BYTE, 1 ;Reset
-    ;GOTO Restore ;Return
-
-;ByteOFF6:
-    ;MOVF EVIL_TEMP, 0 ;Move data to W
-    ;MOVWF DATA_RX_OFF6 ;Save sixth Byte
-    ;CLRF DATA_BYTE ;Reset
-    ;GOTO Restore ;Return
+    GOTO Restore ;Return;</editor-fold>
 
 END

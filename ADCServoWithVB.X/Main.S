@@ -211,11 +211,11 @@ ObtainData:
     BTFSC STATUS, 2
     RETURN
     BCF STATUS, 2
-    MOVLW 0x21		    ;W = 1A
-    SUBWF RCSAVE, 0	    ;W = RCSAVE - 1A
-    BTFSC STATUS, 0	    ;RCSAVE >= 1A
-    RETURN		    ;Greater than or equal to
-    MOVLW 0x01		    ;else
+MOVLW 0x21		    ;W = 1A
+SUBWF RCSAVE, 0	    ;W = RCSAVE - 1A
+BTFSC STATUS, 0	    ;RCSAVE >= 1A
+RETURN		    ;Greater than or equal to
+MOVLW 0x01		    ;else
     MOVWF ENABLEPULSE	    ;Enable PW
     MOVF RCSAVE, 0
     MOVWF RCSAVE1
@@ -244,7 +244,7 @@ WaitPS:
     DECFSZ PS
     GOTO Restore
     MOVLW 0x67
-    CALL Transmits
+    CALL Transmit
     CLRF ENABLEPULSE
     CLRF PORTC
     GOTO Restore
